@@ -8,6 +8,7 @@
 double pi = 4*atan(1);
 int pingcount = 0;
 
+typedef unsigned int uint;
 using namespace std;
 
 void ping() {pingcount++; cout << "ping" << pingcount << endl;}
@@ -129,46 +130,42 @@ void buildmatrix (arma::mat* splinemat, vector<bspline>* splines, int order, int
 int main ()
 {	
 	int order = 4;
-	string filename = "knots.txt";
-	int gridpoints = 12;	// knotgrid() overrides this
-	//int physpoints = gridpoints - 2 * (order - 1);
+	string knotfile = "knots.txt";
+	int gridpoints = 4;	// knotgrid() overrides this
+	int physpoints = 4;
 	int nsplines = gridpoints - order;
 
-	//double rmin = 0; 
-	//double rmax = 1;
-	//double totcharge = 1;
+	double rmin = 0; 
+	double rmax = 1;
+	double totcharge = 1;
 
-	//calcknots(rmin,rmax,totcharge,physpoints,order,filename);
+	calcknots(rmin,rmax,totcharge,physpoints,order,knotfile);
 	
 	vector<bspline> splines (nsplines);
+	splines.reserve(nsplines);
 	arma::mat splinemat;
+
+	bspline initspline(knotfile,0,order,gridpoints);
+	initspline.knotgrid();
+
+	for (int k = 0; k < nsplines; k++)
+		splines.push_back(initspline);
 
 	for (auto& el : splines)
 	{	
 		auto i = &el - &splines[0];
 		
-		// constructing spline
-		el.setindex(i);
-		el.setorder(order);
-		el.setsource(filename);
-		el.readknots();
-		el.knotgrid();
-		//spline.makegrid();
-		//spline.readknotsnorm();
-		//spline.makegridnorm();
-
 		//el.printknots();
 		//spline.printgrid();
-		
+		el.setindex(i);
 		el.calcspline();
-		el.printvals();
 		el.writespline();
 	}
 		
 	buildmatrix(&splinemat, &splines, order, gridpoints);	
 	//boundcond(&splinemat, &spline, order);
-	splinemat.print();
-	splinemat.save("splinematrix.txt",arma::raw_ascii);
+	//splinemat.print();
+	//splinemat.save("splinematrix.txt",arma::raw_ascii);
 
 	//arma::mat sols;
 	//solving(&splinemat, &sols, &spline,order,totcharge);
