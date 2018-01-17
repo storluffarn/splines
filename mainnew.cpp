@@ -8,6 +8,10 @@
 
 double pi = 4*atan(1);
 int pingcount = 0;
+//double hbar = 1.0545718e-34;
+//double me = 9.10938356-31;
+//double e = 1.60217662e-19;
+//double e0 = 8.85418781e-12;
 double a0 = 5.29e-11;
 
 typedef unsigned int uint;
@@ -36,14 +40,16 @@ double shell(double rmax, double rmin)
 
 double hpsi(double r, int n, int l)
 {
-	double a = 1.0;
+	//double Q = exp(-r/a0)/(sqrt(pi)*pow(a0,1.5));
 
-	double t111 = factorial(n-l-1);	// 1
-	double t112 = 2.0*n*factorial(n+l);	// 2		// from wiki
+	double a = 1;
+
+	double t111 = factorial(n-l-1.0);	// 1
+	double t112 = 2.0*n*factorial(n+l);	// 2
 	double t11 = t111/t112;				// 0.5
 	double t1 = sqrt(pow(2.0/(n*a),3)*t11);		// sqrt(8*0.5) = 2
-	double t2 = exp(-r/(n*a))*pow(2*r/(n*a),l);	// 0
-	double t3 = boost::math::laguerre(n-l-1,2*l+1,2.0*r/(n*a));
+	double t2 = exp(-r/(n*a))*pow(2.0*r/(n*a),l);	// 0
+	double t3 = pow(boost::math::laguerre(n-l-1,2.0*r/(n*a)),2*l+1);
 
 	double psi = t1*t2*t3;
 
@@ -85,7 +91,7 @@ void calcpotshell (vector <double>* realpots, uint gridpts, double rmin, double 
 		else if (el >= rmin && el <= rmax)
 			pot = 2*pi*Q0*pow(rmax,2) - 4*pi*Q0/3*(pow(el,2)/2 + pow(rmin,3)/el);
 		else
-			pot = 4.0/3.0*pi * (pow(rmax,3) - pow(rmin,3)) / el;	
+			pot = Q0/el;
 		
 		cout << el << " " << pot << endl;	
 		realpots->push_back(pot);
@@ -96,36 +102,35 @@ void calchpot (vector <double>* realpots, uint gridpts, int n, int l, vector <do
 {
 	realpots->reserve(gridpts);
 
-	for (auto& r : (*grid))
+	for (auto& el : (*grid))
 	{
-		double pot = pow(r*hpsi(r,n,l),2);
+		double pot = pow(hpsi(el,n,l),2);
+
+		pot *= 4*pi;
 	
+		//cout << pot << endl;
 		realpots->push_back(pot);
 	}
 }
 
 void calcknots(double rmin, double rmax, double rend, int n, int l, double Q0, int gridpts, int order, string knotfile, vector <double>* printgrid, vector<double>* dens, bool state)
 {
-	
 	vector <double> knots;
 	knots.reserve(gridpts + 2*(order - 1));
 	dens->reserve(gridpts + 2*(order - 1));
-	
-	double emax = log(rend+1);
-	double step = emax / gridpts;
-		
-	for (int k = 0; k < gridpts; k++) 
-	{
-		double knot = exp(step*k)-1;
-		printgrid->push_back(knot);
-	}
-	
+
+	double dr = (rend)/gridpts;
+
+	for (int k = 0; k <= gridpts; k++)
+		printgrid->push_back(k*dr);
+
 	if(state)
 	{
 		for (auto& r : (*printgrid))
 		{
-			double den = -r*pow(hpsi(r,n,l),2);
+			double den = -4*pi*r*pow(hpsi(r,n,l),2);
 
+			//cout << r << " " << den << endl;
 			knots.push_back(r);
 			dens->push_back(den);
 		}
@@ -157,6 +162,8 @@ void calcknots(double rmin, double rmax, double rend, int n, int l, double Q0, i
 					den = 0;
 			}			
 		
+			//cout << r << " " << den << endl;
+
 			knots.push_back(r);
 			dens->push_back(den);
 		}
@@ -176,8 +183,18 @@ void buildmatrix (arma::mat* splinemat, arma::colvec* dens, vector<double>* dens
 	uint eqs = gridpts;
 	
 	for (uint k = 0; k < eqs; k++)
+	{
+		//arma::rowvec splinerow(eqs+2,arma::fill::zeros);
+
+		//for (uint l = 0; l < order - 1; l++)
 		for (uint l = 1; l < eqs+2; l++)
+		{
+			//splinerow(k+l) = (*splines->getd2(order-1,k+l))[k];
 			(*splinemat)(k,l) = (*splines->getd2(order-1,l))[k];
+		}
+
+		//splinemat->insert_rows((*splinemat).n_rows,splinerow);
+	}
 	
 	dens->zeros(eqs+2);
 
@@ -204,11 +221,38 @@ void boundcond (arma::mat* splinemat, arma::colvec* dens, uint gridpts, double Q
 
 void solving (arma::mat* splinemat, arma::colvec* dens, arma::colvec* sols)
 {
+	// dealing with r = 0
+	//splinemat->shed_col(0);
+	//splinemat->shed_row(0);
+	//dens->shed_row(0);
+	//(*splinemat).shed_col((*splinemat).n_cols-1);
+	//(*splinemat).shed_row((*splinemat).n_rows-1);
+	//physpts.shed_row(physpts.n_rows-1);
+
+	
+
+	// LU-decomposition for increased performance	
+	
+	//cout << "matrices before solving " << endl;
+	//splinemat->print();
+	//cout << endl;
+	//cout << "density: " << endl;
+	//dens->print();
+	//cout << endl;
+	//cout << "sizes: " << splinemat->n_rows << "x" << splinemat->n_cols << " " << dens->size() << endl;
+
 	arma::mat U,L;
+	//lu(U,L,splinemat->submat(1,1,splinemat->n_rows-1.,splinemat->n_cols-1));
 	lu(U,L,(*splinemat));
 	arma::mat LUsplinemat = U*L;
+	
+	//physpts.print();
+	//(*splinemat).print();
+	//LUsplinemat.print();
 
 	(*sols) = arma::solve(LUsplinemat,(*dens));
+
+	//sols->insert_rows(0,0);
 }
 
 
@@ -241,16 +285,16 @@ int main ()
 	string knotfile = "knots.dat";
 	string outfile = "output.csv";
 	uint order = 4;
-	uint gridpts = 100;
+	uint gridpts = 500;
 	double tolerance = 5e-9;
 	vector <double> printgrid;
 	vector <double> dens;
 
 	double rmin = 0.0; 
-	double rmax = 30.0;
-	double rend = 1*rmax;
+	double rmax = 1.0;
+	double rend = 4*rmax;
 	double Q0 = 1;
-	bool state = 1;
+	bool state = 0;
 	int n = 1;
 	int l = 0;
 
@@ -262,6 +306,16 @@ int main ()
 	bsplines splines(knotfile,order,gridpts,tolerance);	
 	splines.knotgrid();		
 
+	// check norm
+	//vector <double> diffgrid;
+	//for (uint k = 0; k < printgrid.size() - 1; k++)
+	//{
+
+	//}
+
+	//splines.printknots();
+
+	//arma::mat splinemat;
 	arma::mat splinemat(gridpts,gridpts + order - 2,arma::fill::zeros);
 	arma::colvec densvec;
 	vector <double> estpots;
@@ -318,8 +372,9 @@ int main ()
 		calchpot(&realpots,gridpts,n,l,&printgrid);
 		
 		for (uint k = 0; k < estpots.size(); k++)
-			outstream << estpots[k] << "," << realpots[k] << "," << printgrid[k] << endl;
+			outstream << estpots[k] << "," << realpots[k] << endl;
 	}
+
 
 	outstream.close();
 }

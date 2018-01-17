@@ -1,3 +1,4 @@
+
 #include <cmath>
 #include "bsplines.h"
 #include <armadillo>
@@ -6,37 +7,27 @@ using namespace std;
 
 typedef unsigned int uing;
 
-int pingcount = 0;
+//int pingcount = 0;
 
-void ping() {pingcount++; cout << "ping" << pingcount << endl;}
+//void ping() {pingcount++; cout << "ping" << pingcount << endl;}
 
 int main()
 {
-	string knotsfile = "knots.txt";
+	string knotfile = "testknots.txt";
 	uint order = 4;
-	uint nphysknots = 4;
-	uint nknots = nphysknots + 2*(order - 1);	
-	uint nsplines = nknots - order;
-	uint ngrid = 100;
+	uint gridpts = 1000;
+	double tolerance = 10e-10;
 
-	vector <bspline> splines;
-	splines.reserve(nsplines);
-
-	//bspline initspline;
-	//initspline.setsource(knotsfile);
-	//initspline.setorder(order);
-	//initspline.setgridpts(ngrid);
-	//initspline.readknots();
+	bsplines splines(knotfile,order,gridpts,tolerance);
 	
+	//splines.knotgrid();
+	splines.makegrid();
 
-	bspline initspline(knotsfile,0,order,ngrid);	
-	initspline.makegrid();
+	splines.printknots();
+	splines.printgrid();
 
-	for (uint k = 0; k < nsplines; k++)
-	{
-		splines.push_back(initspline);
-		splines[k].setindex(k);
-		splines[k].calcspline();
-		splines[k].writespline();	
-	}
+	splines.calcsplines();
+
+	splines.writesplines();
+
 }
